@@ -161,3 +161,89 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
+
+# Test creating a user with a valid provided nickname
+async def test_create_user_with_provided_valid_nickname(db_session, email_service):
+    user_data = {
+        "nickname": "ValidNickname",
+        "email": "valid_nickname_user@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.AUTHENTICATED.name
+    }
+    user = await UserService.create(db_session, user_data, email_service)
+    assert user is not None
+    assert user.nickname == user_data["nickname"]
+
+# Test creating a user with a duplicate nickname
+async def test_create_user_with_duplicate_nickname(db_session, email_service, user):
+    user_data = {
+        "nickname": user.nickname,  # Use an existing user's nickname
+        "email": "duplicate_nickname_user@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.AUTHENTICATED.name
+    }
+    with pytest.raises(ValueError) as exc_info:
+        await UserService.create(db_session, user_data, email_service)
+    
+    # Assert the exception message
+    assert str(exc_info.value) == f"Nickname '{user.nickname}' is already taken."
+
+# Test creating a user without providing a nickname (auto-generate)
+async def test_create_user_without_provided_nickname(db_session, email_service):
+    user_data = {
+        "email": "auto_generated_nickname_user@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.AUTHENTICATED.name
+    }
+    user = await UserService.create(db_session, user_data, email_service)
+    assert user is not None
+    assert user.nickname is not None, "Nickname should be auto-generated"
+
+# Test creating a user with an invalid nickname
+async def test_create_user_with_invalid_nickname(db_session, email_service):
+    user_data = {
+        "nickname": "Invalid!Nickname",  # Invalid due to special characters
+        "email": "invalid_nickname_user@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.AUTHENTICATED.name
+    }
+    user = await UserService.create(db_session, user_data, email_service)
+    assert user is None, "User creation should fail due to invalid nickname"
+
+# Test creating a user with a nickname that exceeds maximum length
+async def test_create_user_with_long_nickname(db_session, email_service):
+    user_data = {
+        "nickname": "toolongnickname12345678901234567890",  # 31 characters
+        "email": "long_nickname_user@example.com",
+        "password": "ValidPassword123!",
+        "role": UserRole.AUTHENTICATED.name
+    }
+    user = await UserService.create(db_session, user_data, email_service)
+    assert user is None, "User creation should fail due to nickname exceeding maximum length"
+
+# Test creating multiple users without providing nicknames to ensure auto-generated uniqueness
+async def test_auto_generated_nickname_uniqueness(db_session, email_service):
+    users = []
+    for _ in range(10):
+        user_data = {
+            "email": f"auto_user_{_}@example.com",
+            "password": "ValidPassword123!",
+            "role": UserRole.AUTHENTICATED.name
+        }
+        user = await UserService.create(db_session, user_data, email_service)
+        users.append(user)
+
+    nicknames = [user.nickname for user in users if user is not None]
+    assert len(nicknames) == len(set(nicknames)), "Auto-generated nicknames should be unique"
+
+# Test updating a user's nickname to a valid new value
+async def test_update_user_nickname_valid(db_session, user):
+    new_nickname = "UpdatedValidNickname"
+    updated_user = await UserService.update(db_session, user.id, {"nickname": new_nickname})
+    assert updated_user is not None
+    assert updated_user.nickname == new_nickname
+
+# Test updating a user's nickname to a value already used by another user
+async def test_update_user_nickname_duplicate(db_session, user, verified_user):
+    updated_user = await UserService.update(db_session, user.id, {"nickname": verified_user.nickname})
+    assert updated_user is None, "Updating to a duplicate nickname should fail"
