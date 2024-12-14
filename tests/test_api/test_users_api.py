@@ -190,3 +190,82 @@ async def test_list_users_unauthorized(async_client, user_token):
         headers={"Authorization": f"Bearer {user_token}"}
     )
     assert response.status_code == 403  # Forbidden, as expected for regular user
+
+@pytest.mark.asyncio
+async def test_list_users_unauthorized(async_client):
+    """Test accessing the list users endpoint without a valid token."""
+    response = await async_client.get("/users/")
+    assert response.status_code == 401  # Unauthorized
+
+@pytest.mark.asyncio
+async def test_list_users_as_manager(async_client, manager_token):
+    """Test listing users as a manager."""
+    headers = {"Authorization": f"Bearer {manager_token}"}
+    response = await async_client.get("/users/", headers=headers)
+    assert response.status_code == 200
+    assert "items" in response.json()
+
+
+@pytest.mark.asyncio
+async def test_create_user_missing_fields(async_client, admin_token):
+    """Test creating a user with missing mandatory fields."""
+    user_data = {"email": "missing_password@example.com"}  # Missing password
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 422  # Validation error
+
+@pytest.mark.asyncio
+async def test_create_user_invalid_email(async_client, admin_token):
+    """Test creating a user with an invalid email address."""
+    user_data = {
+        "email": "invalid-email",
+        "password": "ValidPass123!"
+    }
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 422  # Unprocessable entity
+
+@pytest.mark.asyncio
+async def test_update_user_missing_fields(async_client, admin_user, admin_token):
+    """Test updating a user with missing fields."""
+    updated_data = {"nickname": ""}  # Invalid nickname
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_get_user_unauthorized(async_client, user):
+    """Test fetching a user without authorization."""
+    response = await async_client.get(f"/users/{user.id}")
+    assert response.status_code == 401  # Unauthorized
+
+#@pytest.mark.asyncio
+#async def test_delete_user_as_manager(async_client, manager_token, user):
+#    """Test that a manager cannot delete a user."""
+#    headers = {"Authorization": f"Bearer {manager_token}"}
+#    response = await async_client.delete(f"/users/{user.id}", headers=headers)
+#    assert response.status_code == 403  # Forbidden
+
+@pytest.mark.asyncio
+async def test_get_non_existent_user(async_client, admin_token):
+    """Test fetching a non-existent user."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    non_existent_user_id = "00000000-0000-0000-0000-000000000000"
+    response = await async_client.get(f"/users/{non_existent_user_id}", headers=headers)
+    assert response.status_code == 404  # Not Found
+
+@pytest.mark.asyncio
+async def test_list_users_missing_params(async_client, admin_token):
+    """Test listing users with missing pagination parameters."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/", headers=headers)
+    assert response.status_code == 200
+    assert "items" in response.json()
+
+@pytest.mark.asyncio
+async def test_create_user_invalid_data(async_client, admin_token):
+    """Test creating a user with invalid data."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    invalid_user_data = {"email": "not-an-email", "password": "short"}
+    response = await async_client.post("/users/", json=invalid_user_data, headers=headers)
+    assert response.status_code == 422  # Validation Error

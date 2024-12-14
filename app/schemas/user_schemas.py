@@ -7,6 +7,7 @@ import uuid
 import re
 from app.models.user_model import UserRole
 from app.utils.nickname_gen import generate_nickname
+from app.utils.security import validate_password
 
 
 def validate_url(url: Optional[str]) -> Optional[str]:
@@ -60,6 +61,12 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     email: EmailStr = Field(..., example="john.doe@example.com")
     password: str = Field(..., example="Secure*1234")
+    
+    @validator("password", pre=True, always=True)
+    def validate_password_field(cls, value):
+        if value:
+            validate_password(value)  # Raises a ValueError if invalid
+        return value
 
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = Field(None, example="john.doe@example.com")
