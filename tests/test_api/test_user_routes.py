@@ -1,13 +1,21 @@
 import pytest
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 from httpx import AsyncClient
-from app.models.user_model import User
-from app.services.jwt_service import decode_token
 from urllib.parse import urlencode
 from sqlalchemy.sql import text  # Import the text function
+from fastapi import HTTPException
+from datetime import timedelta
 from faker import Faker
+from app.models.user_model import User
+from app.services.user_service import UserService
+from app.services.jwt_service import decode_token, create_access_token
+from app.dependencies import get_settings
+from app.schemas.user_schemas import UserResponse
+from app.schemas.pagination_schema import EnhancedPagination
 
 fake = Faker()
+settings = get_settings()
 
 @pytest.mark.asyncio
 async def test_update_user_invalid_data(async_client, admin_token, admin_user):
@@ -133,3 +141,167 @@ async def test_delete_user_non_existent(async_client, admin_token):
     response = await async_client.delete("/users/00000000-0000-0000-0000-000000000000", headers=headers)
     assert response.status_code == 404
     assert "User not found" in response.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_create_user_existing_email(async_client, admin_token, verified_user):
+    """Test creating a user with an existing email."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": verified_user.email,  # Use an existing user's email
+        "password": "ValidPassword123!",
+        "nickname": "new_unique_nickname",
+        "role": "AUTHENTICATED"  # Add the required role field
+    }
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 400, response.json()
+    assert "Email already exists" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_user_internal_error(mocker, async_client, admin_token):
+    """Test user creation when an internal error occurs."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": fake.email(),
+        "password": "ValidPassword123!",
+        "nickname": "valid_nickname",
+        "role": "AUTHENTICATED"  # Add the required role field
+    }
+
+    # Mock UserService.create to simulate an internal error
+    mocker.patch("app.services.user_service.UserService.create", return_value=None)
+
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 500, response.json()
+    assert "Failed to create user" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_user_invalid_input(async_client, admin_token):
+    """Test creating a user with invalid input."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": "invalidemail",  # Invalid email format
+        "password": "short",  # Weak password
+        "nickname": "invalid nickname!"  # Invalid nickname format
+    }
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 422, response.json()
+    assert "value is not a valid email address" in str(response.json()["detail"])
+
+@pytest.mark.asyncio
+async def test_login_account_locked(async_client, mocker):
+    """Test login fails for locked accounts."""
+    form_data = {"username": "locked_user@example.com", "password": "CorrectPassword123!"}
+    # Mock UserService.is_account_locked to return True
+    mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=True)
+
+    response = await async_client.post(
+        "/login/",
+        data=form_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Account locked due to too many failed login attempts."
+
+@pytest.mark.asyncio
+async def test_login_success(async_client, mocker, db_session, verified_user):
+    """Test successful login."""
+    form_data = {"username": verified_user.nickname, "password": "CorrectPassword123!"}
+
+    # Mock UserService.is_account_locked to return False
+    mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=False)
+    # Mock UserService.login_user to return a verified user
+    mocker.patch("app.services.user_service.UserService.login_user", return_value=verified_user)
+
+    # Calculate expected token expiry
+    expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+    expected_token = create_access_token(
+        data={"sub": verified_user.email, "role": str(verified_user.role.name)},
+        expires_delta=expires_delta
+    )
+    
+    response = await async_client.post(
+        "/login/",
+        data=form_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["access_token"] == expected_token
+    assert response_data["token_type"] == "bearer"
+
+@pytest.mark.asyncio
+async def test_login_incorrect_credentials(async_client, mocker):
+    """Test login with incorrect credentials."""
+    form_data = {"username": "nonexistent@example.com", "password": "WrongPassword!"}
+    # Mock UserService.is_account_locked to return False
+    mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=False)
+    # Mock UserService.login_user to return None
+    mocker.patch("app.services.user_service.UserService.login_user", return_value=None)
+
+    response = await async_client.post(
+        "/login/",
+        data=form_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect email or password."
+
+@pytest.mark.asyncio
+async def test_login_unexpected_error(async_client, mocker):
+    """Test login when an unexpected error occurs."""
+    form_data = {"username": "user@example.com", "password": "ValidPassword123!"}
+    # Mock UserService.is_account_locked to raise an exception
+    mocker.patch(
+        "app.services.user_service.UserService.is_account_locked",
+        side_effect=Exception("Unexpected error!")
+    )
+
+    response = await async_client.post(
+        "/login/",
+        data=form_data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "An unexpected error occurred."
+
+@pytest.mark.asyncio
+async def test_list_users_with_results(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total"] == 51
+    assert len(response_data["items"]) == 10
+
+@pytest.mark.asyncio
+async def test_list_users_empty(async_client, admin_token, db_session):
+    await db_session.execute(text("DELETE FROM users"))
+    await db_session.commit()
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total"] == 0
+    assert len(response_data["items"]) == 0
+
+@pytest.mark.asyncio
+async def test_list_users_without_permission(async_client, user_token):
+    """Test listing users without proper permissions."""
+    headers = {"Authorization": f"Bearer {user_token}"}  # Regular user token
+    response = await async_client.get("/users/", headers=headers)
+    assert response.status_code == 403  # Forbidden
+    assert "detail" in response.json()
+
+@pytest.mark.asyncio
+async def test_list_users_partial_page(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=40&limit=20", headers=headers)
+    assert response.status_code == 200
+    response_data = response.json()
+    assert len(response_data["items"]) == 11  
