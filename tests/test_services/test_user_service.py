@@ -319,3 +319,86 @@ def test_invalid_password_verification():
 
     # Ensure wrong password does not match
     assert not verify_password(wrong_password, hashed_password)
+
+@pytest.mark.asyncio
+async def test_login_user_locked_account(db_session, locked_user):
+    """Test login fails for locked accounts."""
+    result = await UserService.login_user(db_session, locked_user.nickname, "correctpassword")
+    assert result is None, "Login should fail for locked accounts"
+
+@pytest.mark.asyncio
+async def test_reset_password_for_nonexistent_user(db_session):
+    """Test reset_password fails for non-existent users."""
+    success = await UserService.reset_password(db_session, "non-existent-id", "NewPassword123!")
+    assert success is False, "Reset should fail for non-existent users"
+
+@pytest.mark.asyncio
+async def test_create_user_with_duplicate_email(db_session, email_service, user):
+    """Test creating a user with an email that already exists."""
+    user_data = {
+        "email": user.email,  # Use existing user's email
+        "password": "ValidPassword123!",
+        "nickname": "newnickname",
+        "role": "AUTHENTICATED"
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+    assert created_user is None, "Creating a user with duplicate email should fail"
+
+@pytest.mark.asyncio
+async def test_create_user_with_invalid_password(db_session, email_service):
+    """Test creating a user with an invalid password."""
+    user_data = {
+        "email": "invalidpassword@example.com",
+        "password": "short",  # Invalid password
+        "nickname": "validnickname",
+        "role": "AUTHENTICATED"
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+    assert created_user is None, "Creating a user with invalid password should fail"
+
+@pytest.mark.asyncio
+async def test_create_user_duplicate_nickname_raises_error(db_session, email_service, user):
+    """Test creating a user with a nickname that already exists."""
+    user_data = {
+        "email": "uniqueemail@example.com",
+        "password": "ValidPassword123!",
+        "nickname": user.nickname,  # Duplicate nickname
+        "role": "AUTHENTICATED"
+    }
+    with pytest.raises(ValueError) as exc_info:
+        await UserService.create(db_session, user_data, email_service)
+    assert str(exc_info.value) == f"Nickname '{user.nickname}' is already taken."
+
+@pytest.mark.asyncio
+async def test_update_user_invalid_field(db_session, user):
+    """Test updating a user with an invalid field."""
+    update_data = {"email": "invalidemail"}  # Invalid email
+    updated_user = await UserService.update(db_session, user.id, update_data)
+    assert updated_user is None, "Updating user with invalid email should fail"
+@pytest.mark.asyncio
+async def test_update_nonexistent_user(db_session):
+    """Test updating a non-existent user."""
+    non_existent_user_id = "00000000-0000-0000-0000-000000000000"  # Non-existent UUID
+    update_data = {"email": "newemail@example.com"}
+    updated_user = await UserService.update(db_session, non_existent_user_id, update_data)
+    assert updated_user is None, "Updating a non-existent user should fail"
+@pytest.mark.asyncio
+async def test_is_account_locked(db_session, locked_user):
+    """Test checking if a locked account is detected."""
+    is_locked = await UserService.is_account_locked(db_session, locked_user.email)
+    assert is_locked is True, "Locked account should return True"
+@pytest.mark.asyncio
+async def test_reset_password_for_locked_account(db_session, locked_user):
+    """Test resetting the password of a locked account."""
+    new_password = "NewPassword123!"
+    reset_success = await UserService.reset_password(db_session, locked_user.id, new_password)
+    assert reset_success is True, "Resetting the password of a locked account should succeed"
+    refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
+    assert not refreshed_user.is_locked, "Locked account should be unlocked after password reset"
+@pytest.mark.asyncio
+async def test_unlock_locked_account(db_session, locked_user):
+    """Test unlocking a locked account."""
+    unlocked = await UserService.unlock_user_account(db_session, locked_user.id)
+    assert unlocked is True, "Unlocking a locked account should succeed"
+    refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
+    assert refreshed_user.is_locked is False, "The account should no longer be locked"

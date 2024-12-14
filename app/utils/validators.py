@@ -11,11 +11,14 @@ def validate_email_address(email: str) -> bool:
     Returns:
         bool: True if the email is valid, otherwise False.
     """
+    if not email:  # Handle None or empty strings
+        return False
+
     try:
-        # Validate and get info
-        validate_email(email)
+        # Validate only the format, not deliverability
+        validate_email(email, check_deliverability=False)
         return True
     except EmailNotValidError as e:
-        # Email not valid, return False
         print(f"Invalid email: {e}")
         return False
+        
