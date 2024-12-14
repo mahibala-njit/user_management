@@ -5,6 +5,10 @@ from app.dependencies import get_settings
 from app.models.user_model import User, UserRole
 from app.services.user_service import UserService
 from app.utils.nickname_gen import generate_nickname
+from app.utils.security import validate_password
+from app.utils.security import hash_password, verify_password
+from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import AsyncMock
 
 pytestmark = pytest.mark.asyncio
 
@@ -247,3 +251,71 @@ async def test_update_user_nickname_valid(db_session, user):
 async def test_update_user_nickname_duplicate(db_session, user, verified_user):
     updated_user = await UserService.update(db_session, user.id, {"nickname": verified_user.nickname})
     assert updated_user is None, "Updating to a duplicate nickname should fail"
+
+@pytest.mark.parametrize("password", [
+    "Short1!",  # Too short
+    "alllowercase1!",  # No uppercase
+    "ALLUPPERCASE1!",  # No lowercase
+    "NoNumbers!",  # No digits
+    "NoSpecials1"  # No special characters
+])
+def test_invalid_passwords(password):
+    with pytest.raises(ValueError):
+        validate_password(password)
+
+
+@pytest.mark.parametrize("password", [
+    "ValidPass1!",  # Meets all criteria
+    "Complex$123"  # Meets all criteria
+])
+def test_valid_passwords(password):
+    assert validate_password(password) is True
+
+
+@pytest.mark.asyncio
+async def test_user_creation_with_valid_password(db_session: AsyncSession, email_service: AsyncMock):
+    user_data = {
+        "email": "testuser@example.com",
+        "password": "ValidPass1!",
+        "first_name": "Test",
+        "last_name": "User",
+        "role": "AUTHENTICATED"  # Add required role field
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+
+    assert created_user is not None
+    assert created_user.email == "testuser@example.com"
+    assert created_user.first_name == "Test"
+    assert created_user.last_name == "User"
+    assert created_user.hashed_password is not None
+
+
+@pytest.mark.asyncio
+async def test_user_creation_with_invalid_password(db_session: AsyncSession, email_service: AsyncMock):
+    user_data = {
+        "email": "testuser@example.com",
+        "password": "short1!",  # Invalid password
+        "first_name": "Test",
+        "last_name": "User",
+    }
+    created_user = await UserService.create(db_session, user_data, email_service)
+    assert created_user is None
+
+
+def test_password_hashing():
+    plain_password = "SecurePass123!"
+    hashed_password = hash_password(plain_password)
+
+    # Ensure the hashed password is not the same as the plain password
+    assert hashed_password != plain_password
+
+    # Verify the hashed password matches the original password
+    assert verify_password(plain_password, hashed_password)
+
+def test_invalid_password_verification():
+    plain_password = "SecurePass123!"
+    wrong_password = "WrongPass123!"
+    hashed_password = hash_password(plain_password)
+
+    # Ensure wrong password does not match
+    assert not verify_password(wrong_password, hashed_password)

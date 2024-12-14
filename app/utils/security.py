@@ -51,3 +51,34 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def generate_verification_token():
     return secrets.token_urlsafe(16)  # Generates a secure 16-byte URL-safe token
+
+def validate_password(password: str) -> bool:
+    """
+    Validates the password according to defined security criteria:
+    - At least 8 characters.
+    - At least one uppercase letter.
+    - At least one lowercase letter.
+    - At least one digit.
+    - At least one special character.
+    
+    Args:
+        password (str): The password to validate.
+
+    Returns:
+        bool: True if the password meets the criteria, False otherwise.
+    
+    Raises:
+        ValueError: If the password does not meet the requirements.
+    """
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if not any(char.isupper() for char in password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(char.islower() for char in password):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(char.isdigit() for char in password):
+        raise ValueError("Password must contain at least one number")
+    if not any(char in "!@#$%^&*()-_=+[]{}|;:'\",.<>?/`~" for char in password):
+        raise ValueError("Password must contain at least one special character")
+    return True
+    
