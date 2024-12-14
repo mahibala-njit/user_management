@@ -238,3 +238,17 @@ def email_service():
         mock_service.send_verification_email.return_value = None
         mock_service.send_user_email.return_value = None
         return mock_service
+
+@pytest.fixture(scope="function")
+async def another_user(db_session: AsyncSession):
+    """Fixture to create another user with a unique nickname."""
+    user_data = {
+        "nickname": fake.user_name(),
+        "email": fake.email(),
+        "hashed_password": hash_password("AnotherValidPassword1!"),
+        "role": UserRole.AUTHENTICATED,
+    }
+    user = User(**user_data)
+    db_session.add(user)
+    await db_session.commit()
+    return user
