@@ -6,6 +6,8 @@ from app.database import Database
 from app.dependencies import get_settings
 from app.routers import user_routes
 from app.utils.api_description import getDescription
+from app.utils.common import setup_logging
+
 app = FastAPI(
     title="User Management",
     description=getDescription(),
@@ -32,6 +34,8 @@ app.add_middleware(
 async def startup_event():
     settings = get_settings()
     Database.initialize(settings.database_url, settings.debug)
+    setup_logging()
+    
 
 @app.exception_handler(Exception)
 async def exception_handler(request, exc):

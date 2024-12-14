@@ -89,7 +89,7 @@ from urllib.parse import urlencode
 async def test_login_success(async_client, verified_user):
     # Attempt to login with the test user
     form_data = {
-        "username": verified_user.email,
+        "username": verified_user.nickname,
         "password": "MySuperPassword$1234"
     }
     response = await async_client.post("/login/", data=urlencode(form_data), headers={"Content-Type": "application/x-www-form-urlencoded"})
