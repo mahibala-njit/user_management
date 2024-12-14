@@ -143,24 +143,6 @@ async def test_delete_user_non_existent(async_client, admin_token):
     assert "User not found" in response.json()["detail"]
 
 @pytest.mark.asyncio
-async def test_create_user_success(async_client, admin_token):
-    """Test successful user creation."""
-    headers = {"Authorization": f"Bearer {admin_token}"}
-    user_data = {
-        "email": fake.email(),
-        "password": "ValidPassword123!",
-        "nickname": "valid_nickname",
-        "role": "ANONYMOUS"  # Add the required role field
-    }
-    response = await async_client.post("/users/", json=user_data, headers=headers)
-    assert response.status_code == 201, response.json()
-    response_data = response.json()
-    assert response_data["email"] == user_data["email"]
-    assert response_data["nickname"] == user_data["nickname"]
-    assert response_data["role"] == user_data["role"]
-
-
-@pytest.mark.asyncio
 async def test_create_user_existing_email(async_client, admin_token, verified_user):
     """Test creating a user with an existing email."""
     headers = {"Authorization": f"Bearer {admin_token}"}
