@@ -172,9 +172,10 @@ class UserService:
     
 
     @classmethod
-    async def login_user(cls, session: AsyncSession, email: str, password: str) -> Optional[User]:
-        user = await cls.get_by_email(session, email)
+    async def login_user(cls, session: AsyncSession, nickname: str, password: str) -> Optional[User]:
+        user = await cls.get_by_nickname(session, nickname=nickname)
         if user:
+            logger.info(f"User with ID found")
             if user.email_verified is False:
                 return None
             if user.is_locked:
