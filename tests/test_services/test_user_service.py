@@ -120,7 +120,7 @@ async def test_register_user_with_invalid_data(db_session, email_service):
 # Test successful user login
 async def test_login_user_successful(db_session, verified_user):
     user_data = {
-        "email": verified_user.email,
+        "email": verified_user.nickname,
         "password": "MySuperPassword$1234",
     }
     logged_in_user = await UserService.login_user(db_session, user_data["email"], user_data["password"])
@@ -140,7 +140,7 @@ async def test_login_user_incorrect_password(db_session, user):
 async def test_account_lock_after_failed_logins(db_session, verified_user):
     max_login_attempts = get_settings().max_login_attempts
     for _ in range(max_login_attempts):
-        await UserService.login_user(db_session, verified_user.email, "wrongpassword")
+        await UserService.login_user(db_session, verified_user.nickname, "wrongpassword")
     
     is_locked = await UserService.is_account_locked(db_session, verified_user.email)
     assert is_locked, "The account should be locked after the maximum number of failed login attempts."
