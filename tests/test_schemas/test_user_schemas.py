@@ -1,4 +1,5 @@
 import uuid
+from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 from datetime import datetime
@@ -72,10 +73,28 @@ def test_user_update_valid(user_update_data):
     assert user_update.first_name == user_update_data["first_name"]
 
 # Tests for UserResponse
-def test_user_response_valid(user_response_data):
+def test_user_response_valid():
+    user_response_data = {
+        "id": uuid4(),
+        "email": "john.doe@example.com",
+        "nickname": "john_doe",
+        "first_name": "John",
+        "last_name": "Doe",
+        "bio": "Experienced developer",
+        "profile_picture_url": "https://example.com/profile.jpg",
+        "linkedin_profile_url": "https://linkedin.com/in/johndoe",
+        "github_profile_url": "https://github.com/johndoe",
+        "role": "ADMIN",
+        "is_professional": False,
+        "is_locked": False,
+        "created_at": datetime.utcnow(),  # Added created_at field
+        "links": [],  # Include an empty list or mock links
+    }
+
     user = UserResponse(**user_response_data)
     assert user.id == user_response_data["id"]
-    # assert user.last_login_at == user_response_data["last_login_at"]
+    assert user.email == user_response_data["email"]
+    assert user.created_at == user_response_data["created_at"]
 
 # Tests for LoginRequest
 def test_login_request_valid(login_request_data):

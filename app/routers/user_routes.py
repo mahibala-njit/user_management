@@ -23,16 +23,19 @@ from datetime import timedelta
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Response, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Tuple, Optional
 from app.dependencies import get_current_user, get_db, get_email_service, require_role
 from app.schemas.pagination_schema import EnhancedPagination
 from app.schemas.token_schema import TokenResponse
-from app.schemas.user_schemas import LoginRequest, UserBase, UserCreate, UserListResponse, UserResponse, UserUpdate
+from app.schemas.user_schemas import LoginRequest, UserBase, UserCreate, UserListResponse, UserResponse, UserUpdate, UserRole
 from app.services.user_service import UserService
 from app.services.jwt_service import create_access_token
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
+from app.schemas.user_schemas import UserSearchFilterRequest, UserListResponse, UserSearchQueryRequest
 import logging
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -167,6 +170,56 @@ async def create_user(user: UserCreate, request: Request, db: AsyncSession = Dep
         links=create_user_links(created_user.id, request)
     )
 
+@router.get("/users-search", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
+async def basic_search_users(
+    request: Request,
+    query: UserSearchQueryRequest = Depends(),  # Use the request schema
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"])),
+):
+    """
+    Basic search endpoint for filtering users by username, email, role, or lock status.
+
+    Args:
+        query (UserSearchQueryRequest): Encapsulates search and filtering criteria.
+        request (Request): HTTP request object for pagination links.
+        db (AsyncSession): Database session.
+        current_user (dict): Current logged-in user.
+
+    Returns:
+        UserListResponse: Paginated list of users matching the criteria.
+    """
+    total_users, users = await UserService.search_and_filter_users(
+        db,
+        username=query.username,
+        email=query.email,
+        role=query.role,
+        is_locked=query.is_locked,
+        skip=query.skip,
+        limit=query.limit,
+    )
+
+    user_responses = [UserResponse.model_validate(user) for user in users]
+    pagination_links = generate_pagination_links(request, query.skip, query.limit, total_users)
+
+    # Include query filters in the response
+    filters = UserSearchFilterRequest(
+        username=query.username,
+        email=query.email,
+        role=query.role,
+        is_locked=query.is_locked,
+        skip=query.skip,
+        limit=query.limit,
+    )
+
+    return UserListResponse(
+        items=user_responses,
+        total=total_users,
+        page=(query.skip // query.limit) + 1,
+        size=len(user_responses),
+        links=pagination_links,
+        filters=filters,
+    )
 
 @router.get("/users/", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
 async def list_users(
@@ -191,9 +244,9 @@ async def list_users(
         total=total_users,
         page=skip // limit + 1,
         size=len(user_responses),
-        links=pagination_links  # Ensure you have appropriate logic to create these links
+        links=pagination_links,  # Ensure you have appropriate logic to create these links
+        filters=None,  # Set filters explicitly if not used
     )
-
 
 @router.post("/register/", response_model=UserResponse, tags=["Login and Registration"])
 async def register(user_data: UserCreate, session: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
@@ -240,3 +293,41 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
     if await UserService.verify_email_with_token(db, user_id, token):
         return {"message": "Email verified successfully"}
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
+
+@router.post("/users-advanced-search", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
+async def advanced_search_users(
+    request: Request,
+    filters: UserSearchFilterRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"])),
+):
+    """
+    Advanced search endpoint for users.
+
+    Parameters:
+        - request (Request): HTTP request object for pagination links.
+        - filters (UserSearchFilterRequest): JSON body containing search criteria.
+        - db (AsyncSession): Database session.
+
+    Returns:
+        UserListResponse: Paginated list of users matching the criteria.
+    """
+    total_users, users = await UserService.advanced_search_users(
+        db,
+        filters=filters.dict(exclude_none=True),
+    )
+
+    user_responses = [UserResponse.model_validate(user) for user in users]
+
+    # Correctly pass total_items to generate_pagination_links
+    pagination_links = generate_pagination_links(request, filters.skip, filters.limit, total_users)
+
+    # Include filters in the response
+    return UserListResponse(
+        items=user_responses,
+        total=total_users,
+        page=(filters.skip // filters.limit) + 1,
+        size=len(user_responses),
+        links=pagination_links,
+        filters=filters,  # Return filters for better client-side support
+    )

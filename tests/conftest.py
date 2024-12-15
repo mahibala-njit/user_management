@@ -252,3 +252,23 @@ async def another_user(db_session: AsyncSession):
     db_session.add(user)
     await db_session.commit()
     return user
+
+@pytest.fixture(scope="function")
+async def async_session():
+    # Create an async engine and session maker
+    engine = create_async_engine(TEST_DATABASE_URL, echo=True, future=True)
+    async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    # Provide a session for the test
+    async with async_session_maker() as session:
+        yield session
+
+    # Drop all tables after the test
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
