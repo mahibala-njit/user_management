@@ -15,6 +15,12 @@ from uuid import UUID
 from app.services.email_service import EmailService
 from app.models.user_model import UserRole
 import logging
+from sqlalchemy import or_, and_
+from sqlalchemy import select
+from typing import List, Tuple, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import func
+from app.models.user_model import User, UserRole
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -164,6 +170,7 @@ class UserService:
     async def list_users(cls, session: AsyncSession, skip: int = 0, limit: int = 10) -> List[User]:
         query = select(User).offset(skip).limit(limit)
         result = await cls._execute_query(session, query)
+        logger.debug(f"List of Users {result}")
         return result.scalars().all() if result else []
 
     @classmethod
@@ -248,3 +255,78 @@ class UserService:
             await session.commit()
             return True
         return False
+
+    @classmethod
+    async def search_and_filter_users(
+        cls,
+        session: AsyncSession,
+        username: Optional[str] = None,
+        email: Optional[str] = None,
+        role: Optional[UserRole] = None,
+        is_locked: Optional[bool] = None,
+        skip: int = 0,
+        limit: int = 10,
+    ):
+        """
+        Perform basic user search and filtering.
+
+        Parameters:
+            - session: Database session.
+            - username: Filter by username.
+            - email: Filter by email.
+            - role: Filter by user role.
+            - is_locked: Filter by account lock status.
+            - skip: Pagination offset.
+            - limit: Pagination limit.
+
+        Returns:
+            Tuple of total count and list of users matching criteria.
+        """
+        query = select(User)
+        if username:
+            query = query.where(User.nickname.ilike(f"%{username}%"))
+        if email:
+            query = query.where(User.email.ilike(f"%{email}%"))
+        if role:
+            query = query.where(User.role == role)
+        if is_locked is not None:
+            query = query.where(User.is_locked == is_locked)
+
+        total_users = await session.execute(select(func.count()).select_from(query.subquery()))
+        result = await session.execute(query.offset(skip).limit(limit))
+
+        return total_users.scalar(), result.scalars().all()
+
+    @classmethod
+    async def advanced_search_users(cls, session: AsyncSession, filters: Dict):
+        """
+        Perform advanced search based on multiple criteria.
+
+        Parameters:
+            - session: Database session.
+            - filters: Dictionary containing filter criteria.
+
+        Returns:
+            Tuple of total count and list of users matching criteria.
+        """
+        query = select(User)
+
+        # Apply filters dynamically
+        for field, value in filters.items():
+            if field == "username":
+                query = query.where(User.nickname.ilike(f"%{value}%"))
+            elif field == "email":
+                query = query.where(User.email.ilike(f"%{value}%"))
+            elif field == "role":
+                query = query.where(User.role == value)
+            elif field == "is_locked":
+                query = query.where(User.is_locked == value)
+            elif field == "created_from":
+                query = query.where(User.created_at >= value)
+            elif field == "created_to":
+                query = query.where(User.created_at <= value)
+
+        total_users = await session.execute(select(func.count()).select_from(query.subquery()))
+        result = await session.execute(query.offset(filters.get("skip", 0)).limit(filters.get("limit", 10)))
+
+        return total_users.scalar(), result.scalars().all()

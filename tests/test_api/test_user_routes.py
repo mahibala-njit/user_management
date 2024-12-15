@@ -7,15 +7,17 @@ from sqlalchemy.sql import text  # Import the text function
 from fastapi import HTTPException
 from datetime import timedelta
 from faker import Faker
-from app.models.user_model import User
+from app.models.user_model import User, UserRole
 from app.services.user_service import UserService
 from app.services.jwt_service import decode_token, create_access_token
 from app.dependencies import get_settings
-from app.schemas.user_schemas import UserResponse
+from app.schemas.user_schemas import UserResponse, UserListResponse
 from app.schemas.pagination_schema import EnhancedPagination
+from fastapi.testclient import TestClient
+from app.dependencies import get_settings
+from faker import Faker
 
-fake = Faker()
-settings = get_settings()
+fake = Faker()  # Initialize Faker
 
 @pytest.mark.asyncio
 async def test_update_user_invalid_data(async_client, admin_token, admin_user):
@@ -209,29 +211,29 @@ async def test_login_account_locked(async_client, mocker):
 async def test_login_success(async_client, mocker, db_session, verified_user):
     """Test successful login."""
     form_data = {"username": verified_user.nickname, "password": "CorrectPassword123!"}
-
-    # Mock UserService.is_account_locked to return False
+    
+    # Mock UserService methods
     mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=False)
-    # Mock UserService.login_user to return a verified user
     mocker.patch("app.services.user_service.UserService.login_user", return_value=verified_user)
 
     # Calculate expected token expiry
+    settings = get_settings()  # Use get_settings to fetch settings
     expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
     expected_token = create_access_token(
         data={"sub": verified_user.email, "role": str(verified_user.role.name)},
         expires_delta=expires_delta
     )
-    
+
     response = await async_client.post(
         "/login/",
         data=form_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
-
     assert response.status_code == 200
     response_data = response.json()
     assert response_data["access_token"] == expected_token
     assert response_data["token_type"] == "bearer"
+
 
 @pytest.mark.asyncio
 async def test_login_incorrect_credentials(async_client, mocker):
@@ -292,16 +294,47 @@ async def test_list_users_empty(async_client, admin_token, db_session):
 
 @pytest.mark.asyncio
 async def test_list_users_without_permission(async_client, user_token):
-    """Test listing users without proper permissions."""
-    headers = {"Authorization": f"Bearer {user_token}"}  # Regular user token
+    """Test listing users with insufficient permissions."""
+    headers = {"Authorization": f"Bearer {user_token}"}  # Token for a regular user
     response = await async_client.get("/users/", headers=headers)
     assert response.status_code == 403  # Forbidden
     assert "detail" in response.json()
+    assert response.json()["detail"] == "Operation not permitted"  # Match actual message
+
 
 @pytest.mark.asyncio
 async def test_list_users_partial_page(async_client, admin_token, users_with_same_role_50_users):
+    """Test listing users when only a partial page of results is available."""
     headers = {"Authorization": f"Bearer {admin_token}"}
     response = await async_client.get("/users/?skip=40&limit=20", headers=headers)
     assert response.status_code == 200
     response_data = response.json()
-    assert len(response_data["items"]) == 11  
+    assert len(response_data["items"]) == 11  # Corrected expectation
+    assert response_data["total"] == 51  # Ensure total matches
+
+
+@pytest.mark.asyncio
+async def test_list_users_valid_pagination(async_client, admin_token, users_with_same_role_50_users):
+    """Test listing users with valid pagination parameters."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Fetch the first page
+    response_page_1 = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+    assert response_page_1.status_code == 200
+    response_data_page_1 = response_page_1.json()
+    assert len(response_data_page_1["items"]) == 10
+    assert response_data_page_1["total"] == 51  # Corrected expected total
+
+@pytest.mark.asyncio
+async def test_list_users_empty_db(async_client, admin_token, db_session):
+    """Test listing users when no users exist in the database."""
+    # Clear users table
+    await db_session.execute(text("DELETE FROM users"))
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+    assert response.status_code == 200
+    response_data = response.json()
+    assert response_data["total"] == 0
+    assert len(response_data["items"]) == 0

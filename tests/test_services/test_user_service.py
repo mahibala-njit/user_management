@@ -402,3 +402,77 @@ async def test_unlock_locked_account(db_session, locked_user):
     assert unlocked is True, "Unlocking a locked account should succeed"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert refreshed_user.is_locked is False, "The account should no longer be locked"
+
+@pytest.mark.asyncio
+async def test_create_user_valid(async_session: AsyncSession):
+    email_service = AsyncMock()
+    email_service.send_verification_email = AsyncMock(return_value=None)
+    user_data = {
+        "email": "test_user@example.com",
+        "password": "StrongPass123!",
+        "nickname": "testuser",
+        "role": "ADMIN"  # Add the required role field
+    }
+    user = await UserService.create(async_session, user_data, email_service)
+    assert user is not None
+    assert user.email == "test_user@example.com"
+    assert user.nickname == "testuser"
+    assert user.role.value == "ADMIN"  # Compare the enum's value
+
+@pytest.mark.asyncio
+async def test_create_user_duplicate_email(async_session: AsyncSession):
+    email_service = AsyncMock()
+    user_data = {
+        "email": "existing@example.com",  # Assuming this already exists in the DB
+        "password": "StrongPass123!",
+        "nickname": "newuser"
+    }
+    user = await UserService.create(async_session, user_data, email_service)
+    assert user is None
+
+from uuid import uuid4
+
+@pytest.mark.asyncio
+async def test_update_user_nickname(async_session: AsyncSession):
+    # Create a user first
+    user_id = str(uuid4())
+    new_user = User(
+        id=user_id,
+        email="test_update_user@example.com",
+        nickname="oldnickname",
+        hashed_password="hashed_password",  # Use a mock hashed password
+        role="ADMIN",
+    )
+    async_session.add(new_user)
+    await async_session.commit()
+
+    # Update the nickname
+    update_data = {"nickname": "newnickname"}
+    updated_user = await UserService.update(async_session, user_id, update_data)
+    assert updated_user is not None
+    assert updated_user.nickname == "newnickname"
+
+@pytest.mark.asyncio
+async def test_delete_user(async_session: AsyncSession):
+    # Create a user first
+    user_id = str(uuid4())
+    new_user = User(
+        id=user_id,
+        email="test_delete_user@example.com",
+        nickname="deleteuser",
+        hashed_password="hashed_password",  # Use a mock hashed password
+        role="ADMIN",
+    )
+    async_session.add(new_user)
+    await async_session.commit()
+
+    # Delete the user
+    result = await UserService.delete(async_session, user_id)
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_user(async_session: AsyncSession):
+    user_id = "nonexistent-user-id"  # Replace with a non-existent UUID
+    result = await UserService.delete(async_session, user_id)
+    assert result is False
