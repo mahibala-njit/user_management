@@ -9,6 +9,8 @@ from app.utils.security import validate_password
 from app.utils.security import hash_password, verify_password
 from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock
+from app.services.email_service import EmailService
+
 
 pytestmark = pytest.mark.asyncio
 
@@ -476,3 +478,27 @@ async def test_delete_nonexistent_user(async_session: AsyncSession):
     user_id = "nonexistent-user-id"  # Replace with a non-existent UUID
     result = await UserService.delete(async_session, user_id)
     assert result is False
+
+@pytest.mark.asyncio
+async def test_create_user_invalid_password(db_session: AsyncSession, email_service: EmailService):
+    """
+    Test for invalid password during user creation.
+    """
+    # Simulate user data with an invalid password
+    invalid_user_data = {
+        "email": "test@example.com",
+        "password": "short",  # Password fails validation (e.g., too short)
+        "nickname": "testuser"
+    }
+
+    # Call the create method
+    result = await UserService.create(db_session, invalid_user_data, email_service)
+
+    # Assert that the result is None
+    assert result is None
+
+    # Optionally, verify logging output (if you mock the logger)
+    # For example:
+    # logger_mock.error.assert_called_once_with(
+    #     "Password validation failed: Password must be at least X characters long"
+    # )

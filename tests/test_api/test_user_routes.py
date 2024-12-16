@@ -338,3 +338,140 @@ async def test_list_users_empty_db(async_client, admin_token, db_session):
     response_data = response.json()
     assert response_data["total"] == 0
     assert len(response_data["items"]) == 0
+
+from app.utils.security import hash_password  # Ensure you import your password hashing utility
+
+@pytest.mark.asyncio
+async def test_user_response_model_validation(async_client, admin_token, db_session):
+    # Create sample users in the database
+    user_data = [
+        {
+            "email": "user1@example.com",
+            "nickname": "user1",
+            "role": UserRole.AUTHENTICATED,
+            "hashed_password": hash_password("Password123!"),
+        },
+        {
+            "email": "user2@example.com",
+            "nickname": "user2",
+            "role": UserRole.MANAGER,
+            "hashed_password": hash_password("Password123!"),
+        },
+    ]
+    for user in user_data:
+        db_user = User(**user)
+        db_session.add(db_user)
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+
+    # Validate response
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == len(user_data) + 1
+    assert all("id" in user for user in data["items"])
+
+
+@pytest.mark.asyncio
+async def test_pagination_links(async_client, admin_token, db_session):
+    # Insert dummy users into the database
+    for i in range(25):  # Create 25 users
+        db_session.add(
+            User(
+                email=f"user{i}@example.com",
+                nickname=f"user{i}",
+                hashed_password=hash_password("Password123!"),  # Use hashed_password
+                role=UserRole.AUTHENTICATED,
+            )
+        )
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=10&limit=5", headers=headers)
+
+    # Validate pagination links
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "next" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
+
+
+@pytest.mark.asyncio
+async def test_create_user_existing_email_check(async_client, admin_token, db_session):
+    # Create an existing user
+    existing_user = User(
+        email="duplicate@example.com",
+        nickname="duplicate",
+        hashed_password=hash_password("Password123!"),  # Use hashed_password
+        role=UserRole.AUTHENTICATED,
+    )
+    db_session.add(existing_user)
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": "duplicate@example.com",
+        "nickname": "new_nickname",
+        "password": "Password123!",  # This will be hashed in the actual app logic
+        "role": UserRole.AUTHENTICATED.name,
+    }
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+
+    # Verify the duplicate email error
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Email already exists"
+
+@pytest.mark.asyncio
+async def test_generate_pagination_links_partial_page(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=40&limit=20", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+
+    # Validate pagination links for the partial page
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
+    assert not any(link["rel"] == "next" for link in links)  # No 'next' link for the last page
+
+@pytest.mark.asyncio
+async def test_pagination_links_zero_users(async_client, admin_token, db_session):
+    # Ensure the database is empty
+    await db_session.execute(text("DELETE FROM users"))
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+
+    # Validate response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert len(data["items"]) == 0
+    assert "links" in data
+    assert len(data["links"]) == 3  # Should only have self, first, last
+
+@pytest.mark.asyncio
+async def test_advanced_search_pagination_links(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.post(
+        "/users-advanced-search",
+        json={"skip": 10, "limit": 10, "role": UserRole.AUTHENTICATED.name},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+
+    # Validate the presence of pagination links
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "next" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
