@@ -37,16 +37,16 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(default='NONE', description="Open AI Api Key")
     send_real_mail: bool = Field(default=False, description="use mock")
     # Email settings for Mailtrap
-    smtp_server: str = Field(default='smtp.mailtrap.io', description="SMTP server for sending emails")
-    smtp_port: int = Field(default=2525, description="SMTP port for sending emails")
-    smtp_username: str = Field(default='your-mailtrap-username', description="Username for SMTP server")
-    smtp_password: str = Field(default='your-mailtrap-password', description="Password for SMTP server")
-
+    smtp_server: str = Field(default='smtp.mailtrap.io', alias="SMTP_SERVER", description="SMTP server for sending emails")
+    smtp_port: int = Field(default=2525, alias="SMTP_PORT", description="SMTP port for sending emails")
+    smtp_username: str = Field(default='your-mailtrap-username', alias="SMTP_USERNAME", description="Username for SMTP server")
+    smtp_password: str = Field(default='your-mailtrap-password', alias="SMTP_PASSWORD", description="Password for SMTP server")
 
     class Config:
         # If your .env file is not in the root directory, adjust the path accordingly.
         env_file = ".env"
         env_file_encoding = 'utf-8'
+        case_sensitive = False  # Allow case-insensitive keys (optional)
 
 # Instantiate settings to be imported in your application
 settings = Settings()
