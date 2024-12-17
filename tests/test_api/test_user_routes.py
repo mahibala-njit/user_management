@@ -17,6 +17,10 @@ from fastapi.testclient import TestClient
 from app.dependencies import get_settings
 from app.routers.user_routes import login
 from faker import Faker
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 fake = Faker()  # Initialize Faker
 
@@ -475,15 +479,41 @@ async def test_create_user_success(async_client, admin_token):
     """Test successful user creation."""
     headers = {"Authorization": f"Bearer {admin_token}"}
     user_data = {
-        "email": fake.email(),
+        "email": "user@example.com",
         "password": "ValidPassword123!",
         "nickname": "valid_nickname",
-        "role": "ANONYMOUS"  # Add the required role field
+        "role": "ANONYMOUS"
     }
-    response = await async_client.post("/users/", json=user_data, headers=headers)
-    assert response.status_code == 201, response.json()
-    response_data = response.json()
-    assert response_data["email"] == user_data["email"]
-    assert response_data["nickname"] == user_data["nickname"]
-    assert response_data["role"] == user_data["role"]
-    
+
+    # Check if running in GitHub Actions
+    is_ci = settings.github_actions == "true"
+
+    # Conditionally mock email sending
+    if is_ci:
+        with patch("app.services.email_service.EmailService.send_verification_email", new_callable=AsyncMock) as mock_send_email:
+            mock_send_email.return_value = None
+            logger.info("This is Github")
+
+            # Send the request
+            response = await async_client.post("/users/", json=user_data, headers=headers)
+
+            # Assertions
+            assert response.status_code == 201, response.json()
+            response_data = response.json()
+            assert response_data["email"] == user_data["email"]
+            assert response_data["nickname"] == user_data["nickname"]
+            assert response_data["role"] == user_data["role"]
+
+            # Verify the mock was called
+            mock_send_email.assert_called_once()
+    else:
+        # Real execution locally
+        response = await async_client.post("/users/", json=user_data, headers=headers)
+        logger.info("This is NOT Github")
+
+        # Assertions
+        assert response.status_code == 201, response.json()
+        response_data = response.json()
+        assert response_data["email"] == user_data["email"]
+        assert response_data["nickname"] == user_data["nickname"]
+        assert response_data["role"] == user_data["role"]
