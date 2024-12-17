@@ -1,13 +1,14 @@
-# The User Management System Final Project
+# Final Project : User Management System
 
-The User Management System is a FastAPI-based web application that provides administrators the ability to manage user accounts efficiently. The project includes core functionalities like user creation, role-based access control, email verification, and advanced user search and filtering. It adheres to modern software development best practices, including clean code, robust testing, and automated deployment pipelines.
+User Management System is a FastAPI-based web application that provides administrators the ability to manage user accounts efficiently. The project includes core functionalities like user creation, role-based access control, email verification, and advanced user search and filtering. It adheres to modern software development best practices, including clean code, robust testing, and automated deployment pipelines.
 
 The application is containerized using Docker and successfully deployed to DockerHub. Continuous Integration (CI) and Continuous Deployment (CD) processes were established using GitHub Actions, ensuring a seamless and automated workflow for testing and deployment.
 
-🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
-🔗 Github Repository: https://github.com/mahibala-njit/user_management
+    🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
+    🔗 Github Repository: https://github.com/mahibala-njit/user_management
 
 ## Issues
+
 Here are the links to the 5 QA Issues that were identified and resolved during the project development
 1. [Docker Build Issue - Error with libc-bin](https://github.com/mahibala-njit/user_management/issues/1)
 2. [Enhance Username Validation](https://github.com/mahibala-njit/user_management/issues/8)
@@ -16,8 +17,10 @@ Here are the links to the 5 QA Issues that were identified and resolved during t
 5. [Issue with Login endpoint and Swagger Authorize](https://github.com/mahibala-njit/user_management/issues/17)
 
 ## Test Coverage Improvement
+
 Test coverage was around 81% for the project to begin with. Added tests to cover edge cases for various scenarios.
 Current Test coverage is 91% with 222 tests. Overall, more than 100 tests were added.
+
 ![alt text](images/Final-Test-Coverage.png)
 
 ### Links to additional tests
@@ -33,9 +36,15 @@ Current Test coverage is 91% with 222 tests. Overall, more than 100 tests were a
 - [Tests for the User Search feature](https://github.com/mahibala-njit/user_management/blob/main/tests/test_user_search.py)
 
 ## New Feature : User Search and Filtering
+
 **Description**: Administrators can search for users based on username, email, role, account status, and registration date. This feature simplifies user management and enhances the user experience.
+
 **Related Main Commit**: 
 [Commit](https://github.com/kaw393939/user_management/commit/0ba9317fb00759b4d6fa220bb4690f537035467c)
+
+**Swagger End points**:
+![alt text](images/UserSearchAPIs.png)
+
 **Implementation Details**:
 - Added search functionality with filters for:
     - Username: Partial match using SQL ilike.
@@ -46,16 +55,21 @@ Current Test coverage is 91% with 222 tests. Overall, more than 100 tests were a
 - Implemented pagination to handle large datasets efficiently.
 
 ### Basic Search Endpoint
+
 **Route**: GET /users-search
+
 **Tags**: User Search Requires (Admin Role)
+
 **Purpose**:
 This endpoint provides basic search functionality for administrators to search and filter users based on criteria like username, email, role, and account lock status.
+
 **Key Features**:
 - Supports query parameters to specify filters (e.g., username, email, role, is_locked).
 - Implements pagination to limit the size of results and improve performance.
 - Returns a paginated list of users that match the provided search criteria.
 - Includes pagination links for navigating through the results.
 - Filters are echoed back in the response for better client-side usability.
+
 **How It Works**:
 - The UserSearchQueryRequest schema is used to parse and validate query parameters.
 - The UserService.search_and_filter_users method performs the database query with the specified filters and returns:
@@ -65,16 +79,76 @@ This endpoint provides basic search functionality for administrators to search a
         - User details (serialized using UserResponse).
         - Pagination links for next, previous, and self pages.
         - Filters applied during the search.
+
 **Example Use Case**: "As an administrator, I want to quickly find users with locked accounts or search by username to perform account management tasks."
 Wrote unit tests and integration tests to verify functionality.
+
 **Swagger Test Example**:
-1. Search by Email:
+1. Search by Username:
+![alt text](images/searchbyusername1.png)
+![alt text](images/searchbyusername2.png)
+![alt text](images/searchbyusername3.png)
+2. Search by Email:
 ![alt text](images/searchbyemail1.png)
 ![alt text](images/searchbyemail2.png)
-2. Search by Role:
+3. Search by Role:
 ![alt text](images/searchbyrole1.png)
 ![alt text](images/searchbyrole2.png)
 ![alt text](images/searchbyrole3.png)
+4. Search by Status:
+![alt text](images/SearchbyStatus1.png)
+![alt text](images/SearchbyStatus3.png)
+
+### Advanced Search Endpoint
+
+**Route**: POST /users-advanced-search
+
+**Tags**: User Search Requires (Admin Role)
+
+**Purpose**:
+This endpoint provides advanced search functionality for administrators to perform more flexible and powerful searches using a JSON body containing multiple criteria.
+
+**Key Features**:
+- Accepts complex search filters in the request body using the UserSearchFilterRequest schema.
+- Allows for advanced filtering options, including:
+        - Username and email patterns.
+        - User roles (e.g., ADMIN, MANAGER, ANONYMOUS).
+        - Account lock status.
+        - Date ranges for user creation (created_from, created_to).
+- Implements pagination with skip and limit parameters for efficient result handling.
+- Returns a paginated list of users matching the advanced search criteria.
+- Includes pagination links and filters in the response.
+
+**How It Works**:
+- The filters parameter (JSON body) allows administrators to specify multiple filter conditions.
+- The UserService.advanced_search_users method dynamically applies the provided filters to the database query.
+- The response includes:
+        - User details (serialized using UserResponse).
+        - Pagination links for seamless navigation.
+        - Applied filters for client-side reference.
+
+**Example Use Case**: "As an administrator, I want to find all users created in the last month with the role MANAGER and filter out locked accounts for detailed reporting."
+
+**Swagger Test Example**:
+
+1. Search by Status:
+![alt text](images/SearchbyStatus-Advanced1.png)
+![alt text](images/SearchbyStatus-Advanced2.png)
+2. Filter by Registration Date (Created Date):
+![alt text](images/filterbyRegDate1.png)
+![alt text](images/filterbyRegDate2.png)
+![alt text](images/filterbyRegDate3.png)
+
+### Comparison
+
+The following table provides a clear comparison of the two endpoints for **user search and filtering**, designed to help administrators manage users effectively.
+
+| **Endpoint**                 | **Method** | **Input**              | **Search Criteria**                   | **Purpose**                                   |
+|------------------------------|------------|------------------------|---------------------------------------|----------------------------------------------|
+| `/users-search`              | `GET`      | Query Parameters       | Username, email, role, lock status    | Simple and quick searches for users.         |
+| `/users-advanced-search`     | `POST`     | JSON Body              | Username, email, role, lock status, date range | Advanced and flexible user filtering.        |
+
+---
 
 ## GitHub Actions
 - Successful Latest Github action Run: https://github.com/mahibala-njit/user_management/actions/runs/12381016541
@@ -83,8 +157,9 @@ Wrote unit tests and integration tests to verify functionality.
 
 ## DockerHub Deployment
 The project has been successfully deployed to DockerHub. Access the Docker image using the following link:
-🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
-🔗 Docker Image: https://hub.docker.com/repository/docker/mahibala/user_management/tags/3a9c3f598b80294b9ae6b413d1f670f2e46153d1/sha256-e81fe373b956b12cb63e9b3bf2e6054bf9d9cbfe180a9d8094fcb73931e4ab30
+    🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
+    🔗 Docker Image: https://hub.docker.com/repository/docker/mahibala/user_management/tags/3a9c3f598b80294b9ae6b413d1f670f2e46153d1/sha256-e81fe373b956b12cb63e9b3bf2e6054bf9d9cbfe180a9d8094fcb73931e4ab30
+
 ![alt text](images/dockerrepo.png)
 
 The deployment process was automated using GitHub Actions, ensuring that every commit and pull request triggers automated builds and tests before deployment.
