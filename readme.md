@@ -4,8 +4,9 @@ User Management System is a FastAPI-based web application that provides administ
 
 The application is containerized using Docker and successfully deployed to DockerHub. Continuous Integration (CI) and Continuous Deployment (CD) processes were established using GitHub Actions, ensuring a seamless and automated workflow for testing and deployment.
 
-    🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
-    🔗 Github Repository: https://github.com/mahibala-njit/user_management
+🔗 DockerHub Repository: [mahibala/user_management](https://hub.docker.com/repository/docker/mahibala/user_management/general)
+
+🔗 Github Repository: [mahibala-njit](https://github.com/mahibala-njit/user_management)
 
 ## Issues
 
@@ -151,13 +152,16 @@ The following table provides a clear comparison of the two endpoints for **user 
 ---
 
 ## GitHub Actions
+
 - Successful Latest Github action Run: https://github.com/mahibala-njit/user_management/actions/runs/12381016541
-- Mocking SMTP Emails: During GitHub Actions runs, email services are mocked to prevent real emails from being sent.
 - Environment Variables: Sensitive configurations are securely managed using GitHub Secrets.
 
 ## DockerHub Deployment
+
 The project has been successfully deployed to DockerHub. Access the Docker image using the following link:
+
     🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
+
     🔗 Docker Image: https://hub.docker.com/repository/docker/mahibala/user_management/tags/3a9c3f598b80294b9ae6b413d1f670f2e46153d1/sha256-e81fe373b956b12cb63e9b3bf2e6054bf9d9cbfe180a9d8094fcb73931e4ab30
 
 ![alt text](images/dockerrepo.png)
@@ -169,20 +173,52 @@ Maintained a consistent and structured development process, with well-documented
 
 # Course and Project Reflection
 
-## Key Learnings
+The IS601 Web Systems Development course has been a challenging yet deeply rewarding experience that provided me with critical technical and problem-solving skills essential for modern software development. This course covered advanced programming, industry-standard practices, and the mindset needed to succeed in real-world projects.
 
-CI/CD Integration: Implementing automated pipelines significantly improved development efficiency.
-Testing Best Practices: Writing both unit tests and integration tests helped achieve high test coverage and robust code.
-Environment Management: Learned to separate and securely manage configurations for local, development, and production environments.
-Advanced Querying: Improved proficiency with SQLAlchemy by implementing dynamic queries for search and filtering.
+## Key Takeaways
 
-## Challenges Faced
-SMTP Configuration: Configuring SMTP for both local and CI/CD environments required careful handling of secrets and mocking email services in tests.
-Test Isolation: Ensuring test databases were cleaned up after each run using Alembic migrations and scoped sessions.
-Role Management: Auto-assigning roles while maintaining constraints (e.g., only one ADMIN on initialization).
-Deployment Automation: Setting up reliable GitHub Actions pipelines for CI/CD was time-intensive but rewarding.
+1. **Python Programming and FastAPI**
+I gained proficiency in Python for server-side development, specifically with the FastAPI framework. Learning how to design RESTful APIs, manage request-response flows, and validate data using Pydantic was critical.
+
+2. **Clean Code and Design Patterns**
+Through assignments and projects, I implemented design patterns such as:
+
+- Command Pattern: Streamlined calculator operations by encapsulating logic into reusable commands.
+- Plugin Pattern: Dynamically loaded calculator functionalities for scalability.
+- Facade Pattern: Simplified complex processes (e.g., history management).
+- Singleton Pattern: Managed centralized, efficient history storage in applications.
+
+3. **DevOps and CI/CD**
+Setting up GitHub Actions for automated testing and integration was a major milestone. I understood how to configure continuous integration pipelines to test code reliability upon every commit. The use of Docker for containerization enabled seamless deployment, ensuring that the application worked consistently across environments.
+
+4. **Database Management with SQLAlchemy**
+I learned to implement Object Relational Mapping (ORM) using SQLAlchemy, managing both synchronous and asynchronous database interactions. This skill was reinforced while building advanced query systems for user management.
+
+5. **Testing and Debugging**
+Writing unit tests using Pytest and addressing edge cases taught me the importance of robust testing. Mocking external dependencies, managing coverage, and logging provided deeper insights into debugging workflows.
+
+6. **Professional Development Practices**
+
+This course emphasized:
+
+- Using GitHub effectively for version control and collaboration.
+- Following clean coding standards with Pylint and ensuring comprehensive test coverage.
+- Managing configurations dynamically through .env files for various environments (development, production).
+
+## Final Project Reflection
+
+The final project **User Management - User Search and Filtering**, provided an opportunity to integrate all the concepts and skills learned throughout the course into a robust and functional feature. This project aimed to empower administrators with the ability to efficiently manage users through search and filtering capabilities. By implementing two endpoints – Basic Search and Advanced Search – I ensured a flexible and scalable solution that could handle complex queries, including filtering by username, email, role, account status, and registration date ranges. The inclusion of pagination and structured responses further improved performance and usability, making the API well-suited for large datasets.
+
+Technically, the project challenged me to work with asynchronous database queries using SQLAlchemy, Mocking external dependencies, such as the email service, ensured smooth testing in both local and CI/CD environments. I also implemented GitHub Actions for automated testing, guaranteeing reliability and quality at every step.
 
 # Conclusion
-This project was a valuable opportunity to apply modern software development practices, including clean architecture, automated testing, and deployment pipelines. The User Search and Filtering feature showcases the power of dynamic queries and thoughtful API design to address real-world administrative needs.One 
 
-The combination of technical expertise, problem-solving, and professional workflows ensures this project is production-ready and scalable
+This course has been a significant stepping stone in my career journey and helped me develop the understanding for the below
+
+- Technical proficiency in building scalable web applications with Python and FastAPI.
+- A good understanding of design patterns, testing strategies, continuous integration and deployment processes.
+- The ability to manage complex projects using version control, clean coding practices, and modern tools like Docker and GitHub Actions.
+
+The midterm and final projects served as perfect platforms to apply these learnings. They not only tested my technical skills but also reinforced the importance of planning, debugging, and adhering to professional standards.
+
+I feel more confident in tackling real-world development challenges and contributing to industry-grade applications. The course has equipped me with the mindset and tools to thrive in a competitive environment.
