@@ -178,16 +178,47 @@ async def basic_search_users(
     current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
-    Basic search endpoint for filtering users by username, email, role, or lock status.
+    Basic User Search Endpoint
+    
+    This endpoint allows administrators to perform simple search and filtering operations on user data. 
+    It provides options to filter by username, email, role, or account lock status, with pagination support.
 
-    Args:
-        query (UserSearchQueryRequest): Encapsulates search and filtering criteria.
-        request (Request): HTTP request object for pagination links.
-        db (AsyncSession): Database session.
-        current_user (dict): Current logged-in user.
+    **Parameters**:
+        - **request** (*Request*):  
+          The HTTP request object used for generating pagination links.
 
-    Returns:
-        UserListResponse: Paginated list of users matching the criteria.
+        - **query** (*UserSearchQueryRequest*):  
+          Query parameters encapsulating search and filter criteria, including:  
+            - `username` (str, optional): Filter users by username (partial or full match).  
+            - `email` (str, optional): Filter users by email.  
+            - `role` (UserRole, optional): Filter users based on role (e.g., ADMIN, MANAGER, etc.).  
+            - `is_locked` (bool, optional): Filter by account lock status (`True` for locked, `False` for unlocked).  
+            - `skip` (int, optional): Pagination offset (default: 0).  
+            - `limit` (int, optional): Maximum number of records per page (default: 10).  
+
+        - **db** (*AsyncSession*):  
+          Database session dependency for querying user data.
+
+        - **current_user** (*dict*):  
+          The current authenticated user with an ADMIN role.
+
+    **Returns**:
+        - **UserListResponse**:  
+          A structured response containing:  
+            - `items`: List of user records matching the search and filter criteria.  
+            - `total`: Total count of users matching the criteria.  
+            - `page`: Current page number based on the offset and limit.  
+            - `size`: Number of users returned in the current response.  
+            - `links`: Pagination links for navigating through results.  
+            - `filters`: The filters applied to the search for clarity.
+            
+    **Usage Notes**:
+        - This endpoint is useful for simple and fast search functionality with limited filters.  
+        - Pagination is implemented to optimize performance for large datasets.  
+        - It requires the current user to have an `ADMIN` role to access the endpoint.  
+
+    **Permissions**:
+        - This endpoint is restricted to administrators (`ADMIN` role only).
     """
     total_users, users = await UserService.search_and_filter_users(
         db,
@@ -302,15 +333,45 @@ async def advanced_search_users(
     current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
-    Advanced search endpoint for users.
+    Advanced User Search Endpoint
+    
+    This endpoint allows administrators to perform flexible and advanced filtering of users. 
+    It accepts a JSON body containing various search criteria and supports pagination.
 
-    Parameters:
-        - request (Request): HTTP request object for pagination links.
-        - filters (UserSearchFilterRequest): JSON body containing search criteria.
-        - db (AsyncSession): Database session.
+    **Parameters**:
+        - **request** (*Request*):  
+          The HTTP request object used to generate pagination links.
 
-    Returns:
-        UserListResponse: Paginated list of users matching the criteria.
+        - **filters** (*UserSearchFilterRequest*):  
+          JSON body containing the search criteria, including:  
+            - `username` (str, optional): Filter by partial or full username.  
+            - `email` (str, optional): Filter by partial or full email.  
+            - `role` (UserRole, optional): Filter by user role (e.g., ADMIN, MANAGER).  
+            - `is_locked` (bool, optional): Filter based on account lock status.  
+            - `created_from` (datetime, optional): Filter users created on or after this date.  
+            - `created_to` (datetime, optional): Filter users created on or before this date.  
+            - `skip` (int, optional): Pagination offset.  
+            - `limit` (int, optional): Maximum number of records to fetch (default: 10).  
+
+        - **db** (*AsyncSession*):  
+          Database session dependency for executing queries.
+
+        - **current_user** (*dict*):  
+          The current logged-in user with an ADMIN role.
+
+    **Returns**:
+        - **UserListResponse**:  
+          A paginated list of users matching the search criteria, along with metadata, pagination links, 
+          and filters included in the response for better client-side support.
+
+    **Usage Notes**:
+        - Administrators can perform precise searches using a combination of fields.
+        - Results are paginated, and pagination links are included for ease of navigation.
+        - Fields that are not provided in the request body are excluded from filtering.
+
+    **Permissions**:
+        - This endpoint requires the current user to have an `ADMIN` role.
+
     """
     total_users, users = await UserService.advanced_search_users(
         db,
