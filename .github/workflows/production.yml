@@ -49,7 +49,6 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/myappdb  # Configure the DATABASE_URL environment variable for tests
           smtp_server: ${{ secrets.SMTP_SERVER }}
-          smtp_port: ${{ secrets.SMTP_PORT }}
           smtp_username: ${{ secrets.SMTP_USERNAME }}
           smtp_password: ${{ secrets.SMTP_PASSWORD }}
         run: pytest
