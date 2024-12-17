@@ -1,53 +1,113 @@
+# The User Management System Final Project
 
+The User Management System is a FastAPI-based web application that provides administrators the ability to manage user accounts efficiently. The project includes core functionalities like user creation, role-based access control, email verification, and advanced user search and filtering. It adheres to modern software development best practices, including clean code, robust testing, and automated deployment pipelines.
 
-# The User Management System Final Project: Your Epic Coding Adventure Awaits! 🎉✨🔥
+The application is containerized using Docker and successfully deployed to DockerHub. Continuous Integration (CI) and Continuous Deployment (CD) processes were established using GitHub Actions, ensuring a seamless and automated workflow for testing and deployment.
 
-## Introduction: Buckle Up for the Ride of a Lifetime 🚀🎬
+🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
+🔗 Github Repository: https://github.com/mahibala-njit/user_management
 
-Welcome to the User Management System project - an epic open-source adventure crafted by the legendary Professor Keith Williams for his rockstar students at NJIT! 🏫👨‍🏫⭐ This project is your gateway to coding glory, providing a bulletproof foundation for a user management system that will blow your mind! 🤯 You'll bridge the gap between the realms of seasoned software pros and aspiring student developers like yourselves. 
+## Issues
+Here are the links to the 5 QA Issues that were identified and resolved during the project development
+1. [Docker Build Issue - Error with libc-bin](https://github.com/mahibala-njit/user_management/issues/1)
+2. [Enhance Username Validation](https://github.com/mahibala-njit/user_management/issues/8)
+3. [Ignores User-Provided Nicknames During User Creation](https://github.com/mahibala-njit/user_management/issues/11)
+4. [Enhance Password Validation](https://github.com/mahibala-njit/user_management/issues/14)
+5. [Issue with Login endpoint and Swagger Authorize](https://github.com/mahibala-njit/user_management/issues/17)
 
-### [Instructor Video - Project Overview and Tips](https://youtu.be/gairLNAp6mA) 🎥
+## Test Coverage Improvement
+Test coverage was around 81% for the project to begin with. Added tests to cover edge cases for various scenarios.
+Current Test coverage is 91% with 222 tests. Overall, more than 100 tests were added.
+![alt text](images/Final-Test-Coverage.png)
 
-- [Introduction to the system features and overview of the project - please read](system_documentation.md) 📚
-- [Project Setup Instructions](setup.md) ⚒️
-- [Features to Select From](features.md) 🛠️
-- [About the Project](about.md)🔥🌟
+### Links to additional tests
 
-## Goals and Objectives: Unlock Your Coding Superpowers 🎯🏆🌟
+**Additional Tests to existing files**:
+- [Additional Tests for User Service](https://github.com/mahibala-njit/user_management/blob/main/tests/test_services/test_user_service.py#L171-L503)
+- [Additional Tests for User API](https://github.com/mahibala-njit/user_management/blob/04b86fa12e6f7adba8deb50e67a89da1f6126d8e/tests/test_api/test_users_api.py#L194-L271)
 
-Get ready to ascend to new heights with this legendary project:
+**Added the below new test files to cover addtional tests**:
+- [Testing User Routes](https://github.com/mahibala-njit/user_management/blob/main/tests/test_api/test_user_routes.py)
+- [Testing Dependencies](https://github.com/mahibala-njit/user_management/blob/main/tests/test_dependencies.py)
+- [Testing Email Service](https://github.com/mahibala-njit/user_management/blob/main/tests/test_services/test_email_service.py)
+- [Tests for the User Search feature](https://github.com/mahibala-njit/user_management/blob/main/tests/test_user_search.py)
 
-1. **Practical Experience**: Dive headfirst into a real-world codebase, collaborate with your teammates, and contribute to an open-source project like a seasoned pro! 💻👩‍💻🔥
-2. **Quality Assurance**: Develop ninja-level skills in identifying and resolving bugs, ensuring your code quality and reliability are out of this world. 🐞🔍⚡
-3. **Test Coverage**: Write additional tests to cover edge cases, error scenarios, and important functionalities - leave no stone unturned and no bug left behind! ✅🧪🕵️‍♂️
-4. **Feature Implementation**: Implement a brand new, mind-blowing feature and make your epic mark on the project, following best practices for coding, testing, and documentation like a true artisan. ✨🚀🎆
-5. **Collaboration**: Foster teamwork and collaboration through code reviews, issue tracking, and adhering to contribution guidelines - teamwork makes the dream work, and together you'll conquer worlds! 🤝💪🌍
-6. **Industry Readiness**: Prepare for the software industry by working on a project that simulates real-world development scenarios - level up your skills to super hero status  and become an unstoppable coding force! 🔝🚀🏆⚡
+## New Feature : User Search and Filtering
+**Description**: Administrators can search for users based on username, email, role, account status, and registration date. This feature simplifies user management and enhances the user experience.
+**Related Main Commit**: 
+[Commit](https://github.com/kaw393939/user_management/commit/0ba9317fb00759b4d6fa220bb4690f537035467c)
+**Implementation Details**:
+- Added search functionality with filters for:
+    - Username: Partial match using SQL ilike.
+    - Email: Partial match using SQL ilike.
+    - Role: Exact match on user role (e.g., ADMIN, MANAGER).
+    - Account Lock Status: Filter locked or unlocked accounts.
+    - Date Ranges: Filter users based on registration dates.
+- Implemented pagination to handle large datasets efficiently.
 
-## Submission and Grading: Your Chance to Shine 📝✏️📈
+### Basic Search Endpoint
+**Route**: GET /users-search
+**Tags**: User Search Requires (Admin Role)
+**Purpose**:
+This endpoint provides basic search functionality for administrators to search and filter users based on criteria like username, email, role, and account lock status.
+**Key Features**:
+- Supports query parameters to specify filters (e.g., username, email, role, is_locked).
+- Implements pagination to limit the size of results and improve performance.
+- Returns a paginated list of users that match the provided search criteria.
+- Includes pagination links for navigating through the results.
+- Filters are echoed back in the response for better client-side usability.
+**How It Works**:
+- The UserSearchQueryRequest schema is used to parse and validate query parameters.
+- The UserService.search_and_filter_users method performs the database query with the specified filters and returns:
+        - Total number of matching users.
+        - A list of user records for the current page.
+- The response includes:
+        - User details (serialized using UserResponse).
+        - Pagination links for next, previous, and self pages.
+        - Filters applied during the search.
+**Example Use Case**: "As an administrator, I want to quickly find users with locked accounts or search by username to perform account management tasks."
+Wrote unit tests and integration tests to verify functionality.
+**Swagger Test Example**:
+1. Search by Email:
+![alt text](images/searchbyemail1.png)
+![alt text](images/searchbyemail2.png)
+2. Search by Role:
+![alt text](images/searchbyrole1.png)
+![alt text](images/searchbyrole2.png)
+![alt text](images/searchbyrole3.png)
 
-1. **Reflection Document**: Submit a 1-2 page Word document reflecting on your learnings throughout the course and your experience working on this epic project. Include links to the closed issues for the **5 QA issues, 10 NEW tests, and 1 Feature** you'll be graded on. Make sure your project successfully deploys to DockerHub and include a link to your Docker repository in the document - let your work speak for itself! 📄🔗💥
+## GitHub Actions
+- Successful Latest Github action Run: https://github.com/mahibala-njit/user_management/actions/runs/12381016541
+- Mocking SMTP Emails: During GitHub Actions runs, email services are mocked to prevent real emails from being sent.
+- Environment Variables: Sensitive configurations are securely managed using GitHub Secrets.
 
-2. **Commit History**: Show off your consistent hard work through your commit history like a true coding warrior. **Projects with less than 10 commits will get an automatic 0 - ouch!** 😬⚠️ A significant part of your project's evaluation will be based on your use of issues, commits, and following a professional development process like a boss - prove your coding prowess! 💻🔄🔥
+## DockerHub Deployment
+The project has been successfully deployed to DockerHub. Access the Docker image using the following link:
+🔗 DockerHub Repository: https://hub.docker.com/repository/docker/mahibala/user_management/general
+🔗 Docker Image: https://hub.docker.com/repository/docker/mahibala/user_management/tags/3a9c3f598b80294b9ae6b413d1f670f2e46153d1/sha256-e81fe373b956b12cb63e9b3bf2e6054bf9d9cbfe180a9d8094fcb73931e4ab30
+![alt text](images/dockerrepo.png)
 
-3. **Deployability**: Broken projects that don't deploy to Dockerhub or pass all the automated tests on GitHub actions will face point deductions - nobody likes a buggy app! 🐞☠️ Show the world your flawless coding skills!
+The deployment process was automated using GitHub Actions, ensuring that every commit and pull request triggers automated builds and tests before deployment.
 
-## Managing the Project Workload: Stay Focused, Stay Victorious ⏱️🧠⚡
+## Commit History
+Maintained a consistent and structured development process, with well-documented commits exceeding the required minimum of 10 commits. Each commit reflects incremental progress, addressing specific issues, tests, or feature enhancements.
 
-This project requires effective time management and a well-planned strategy, but fear not - you've got this! Follow these steps to ensure a successful (and sane!) project outcome:
+# Course and Project Reflection
 
-1. **Select a Feature**: [Choose a feature](features.md) from the provided list of additional improvements that sparks your interest and aligns with your goals like a laser beam. ✨⭐🎯 This is your chance to shine!
+## Key Learnings
 
-2. **Quality Assurance (QA)**: Thoroughly test the system's major functionalities related to your chosen feature and identify at least 5 issues or bugs like a true detective. Create GitHub issues for each identified problem, providing detailed descriptions and steps to reproduce - the more detail, the merrier! 🔍🐞🕵️‍♀️ Leave no stone unturned!
+CI/CD Integration: Implementing automated pipelines significantly improved development efficiency.
+Testing Best Practices: Writing both unit tests and integration tests helped achieve high test coverage and robust code.
+Environment Management: Learned to separate and securely manage configurations for local, development, and production environments.
+Advanced Querying: Improved proficiency with SQLAlchemy by implementing dynamic queries for search and filtering.
 
-3. **Test Coverage Improvement**: Review the existing test suite and identify gaps in test coverage like a pro. Create 10 additional tests to cover edge cases, error scenarios, and important functionalities related to your chosen feature. Focus on areas such as user registration, login, authorization, and database interactions. Simulate the setup of the system as the admin user, then creating users, and updating user accounts - leave no stone unturned, no bug left behind! ✅🧪🔍🔬 Become the master of testing!
+## Challenges Faced
+SMTP Configuration: Configuring SMTP for both local and CI/CD environments required careful handling of secrets and mocking email services in tests.
+Test Isolation: Ensuring test databases were cleaned up after each run using Alembic migrations and scoped sessions.
+Role Management: Auto-assigning roles while maintaining constraints (e.g., only one ADMIN on initialization).
+Deployment Automation: Setting up reliable GitHub Actions pipelines for CI/CD was time-intensive but rewarding.
 
-4. **New Feature Implementation**: Implement your chosen feature, following the project's coding practices and architecture like a coding ninja. Write appropriate tests to ensure your new feature is functional and reliable like a rock. Document the new feature, including its usage, configuration, and any necessary migrations - future you will thank you profusely! 🚀✨📝👩‍💻⚡ Make your mark on this project!
+# Conclusion
+This project was a valuable opportunity to apply modern software development practices, including clean architecture, automated testing, and deployment pipelines. The User Search and Filtering feature showcases the power of dynamic queries and thoughtful API design to address real-world administrative needs.One 
 
-5. **Maintain a Working Main Branch**: Throughout the project, ensure you always have a working main branch deploying to Docker like a well-oiled machine. This will prevent any last-minute headaches and ensure a smooth submission process - no tears allowed, only triumphs! 😊🚢⚓ Stay focused, stay victorious!
-
-Remember, it's more important to make something work reliably and be reasonably complete than to implement an overly complex feature. Focus on creating a feature that you can build upon or demonstrate in an interview setting - show off your skills like a rockstar! 💪🚀🎓
-
-Don't forget to always have a working main branch deploying to Docker at all times. If you always have a working main branch, you will never be in jeopardy of receiving a very disappointing grade :-). Keep that main branch shining bright!
-
-Let's embark on this epic coding adventure together and conquer the world of software engineering! You've got this, coding rockstars! 🚀🌟✨
+The combination of technical expertise, problem-solving, and professional workflows ensures this project is production-ready and scalable
