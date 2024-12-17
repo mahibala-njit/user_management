@@ -170,12 +170,12 @@ async def create_user(user: UserCreate, request: Request, db: AsyncSession = Dep
         links=create_user_links(created_user.id, request)
     )
 
-@router.get("/users-search", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
+@router.get("/users-search", response_model=UserListResponse, tags=["User Search Requires (Admin Role)"])
 async def basic_search_users(
     request: Request,
     query: UserSearchQueryRequest = Depends(),  # Use the request schema
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"])),
+    current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
     Basic search endpoint for filtering users by username, email, role, or lock status.
@@ -294,12 +294,12 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
         return {"message": "Email verified successfully"}
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
 
-@router.post("/users-advanced-search", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
+@router.post("/users-advanced-search", response_model=UserListResponse, tags=["User Search Requires (Admin Role)"])
 async def advanced_search_users(
     request: Request,
     filters: UserSearchFilterRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"])),
+    current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
     Advanced search endpoint for users.

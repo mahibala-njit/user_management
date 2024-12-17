@@ -15,9 +15,12 @@ from app.schemas.user_schemas import UserResponse, UserListResponse
 from app.schemas.pagination_schema import EnhancedPagination
 from fastapi.testclient import TestClient
 from app.dependencies import get_settings
+from app.routers.user_routes import login
 from faker import Faker
 
 fake = Faker()  # Initialize Faker
+
+settings = get_settings()
 
 @pytest.mark.asyncio
 async def test_update_user_invalid_data(async_client, admin_token, admin_user):
@@ -192,20 +195,18 @@ async def test_create_user_invalid_input(async_client, admin_token):
     assert "value is not a valid email address" in str(response.json()["detail"])
 
 @pytest.mark.asyncio
-async def test_login_account_locked(async_client, mocker):
-    """Test login fails for locked accounts."""
-    form_data = {"username": "locked_user@example.com", "password": "CorrectPassword123!"}
-    # Mock UserService.is_account_locked to return True
+async def test_login_account_locked(mocker):
+    """Test login failure due to account being locked."""
+    mock_session = AsyncMock()
     mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=True)
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="locked_user", password="password")
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Account locked due to too many failed login attempts."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Account locked due to too many failed login attempts."
 
 @pytest.mark.asyncio
 async def test_login_success(async_client, mocker, db_session, verified_user):
@@ -236,41 +237,34 @@ async def test_login_success(async_client, mocker, db_session, verified_user):
 
 
 @pytest.mark.asyncio
-async def test_login_incorrect_credentials(async_client, mocker):
-    """Test login with incorrect credentials."""
-    form_data = {"username": "nonexistent@example.com", "password": "WrongPassword!"}
-    # Mock UserService.is_account_locked to return False
+async def test_login_incorrect_credentials(mocker):
+    """Test login failure due to incorrect credentials."""
+    mock_session = AsyncMock()
     mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=False)
-    # Mock UserService.login_user to return None
     mocker.patch("app.services.user_service.UserService.login_user", return_value=None)
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="wrong_user", password="wrong_password")
 
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Incorrect email or password."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Incorrect email or password."
 
 @pytest.mark.asyncio
-async def test_login_unexpected_error(async_client, mocker):
-    """Test login when an unexpected error occurs."""
-    form_data = {"username": "user@example.com", "password": "ValidPassword123!"}
-    # Mock UserService.is_account_locked to raise an exception
-    mocker.patch(
-        "app.services.user_service.UserService.is_account_locked",
-        side_effect=Exception("Unexpected error!")
-    )
+async def test_login_unexpected_error(mocker):
+    """Test login failure due to an unexpected error."""
+    mock_session = AsyncMock()
+    mocker.patch("app.services.user_service.UserService.is_account_locked", side_effect=Exception("Unexpected error"))
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="test@example.com", password="password")
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "An unexpected error occurred."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "An unexpected error occurred."
+
 
 @pytest.mark.asyncio
 async def test_list_users_with_results(async_client, admin_token, users_with_same_role_50_users):
@@ -475,3 +469,21 @@ async def test_advanced_search_pagination_links(async_client, admin_token, users
     assert any(link["rel"] == "self" for link in links)
     assert any(link["rel"] == "next" for link in links)
     assert any(link["rel"] == "prev" for link in links)
+
+@pytest.mark.asyncio
+async def test_create_user_success(async_client, admin_token):
+    """Test successful user creation."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": fake.email(),
+        "password": "ValidPassword123!",
+        "nickname": "valid_nickname",
+        "role": "ANONYMOUS"  # Add the required role field
+    }
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+    assert response.status_code == 201, response.json()
+    response_data = response.json()
+    assert response_data["email"] == user_data["email"]
+    assert response_data["nickname"] == user_data["nickname"]
+    assert response_data["role"] == user_data["role"]
+    
