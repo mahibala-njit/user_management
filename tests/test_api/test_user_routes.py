@@ -474,6 +474,8 @@ async def test_advanced_search_pagination_links(async_client, admin_token, users
     assert any(link["rel"] == "next" for link in links)
     assert any(link["rel"] == "prev" for link in links)
 
+
+# This will test the sending email (SMTP connection as well), to use mock, .env setting should be smtp_test_use_mock = true
 @pytest.mark.asyncio
 async def test_create_user_success(async_client, admin_token):
     """Test successful user creation."""
@@ -485,14 +487,16 @@ async def test_create_user_success(async_client, admin_token):
         "role": "ANONYMOUS"
     }
 
-    # Check if running in GitHub Actions
-    is_ci = settings.github_actions == "true"
+    # Check if running in GitHub Actions, 
+    # If true this test will use mock, else use real as this will test the smtp connection
+    # For this test to work, make sure the .env file has correct values for the smtp connection (server, port, username, password)
+    is_ci = settings.smtp_test_use_mock == "true"
 
     # Conditionally mock email sending
     if is_ci:
         with patch("app.services.email_service.EmailService.send_verification_email", new_callable=AsyncMock) as mock_send_email:
             mock_send_email.return_value = None
-            logger.info("This is Github")
+            logger.info("Uses Email Service mock")
 
             # Send the request
             response = await async_client.post("/users/", json=user_data, headers=headers)
@@ -509,7 +513,7 @@ async def test_create_user_success(async_client, admin_token):
     else:
         # Real execution locally
         response = await async_client.post("/users/", json=user_data, headers=headers)
-        logger.info("This is NOT Github")
+        logger.info("Real execution - does not use Email Service mock")
 
         # Assertions
         assert response.status_code == 201, response.json()
