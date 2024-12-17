@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=2525, alias="SMTP_PORT", description="SMTP port for sending emails")
     smtp_username: str = Field(default='your-mailtrap-username', alias="SMTP_USERNAME", description="Username for SMTP server")
     smtp_password: str = Field(default='your-mailtrap-password', alias="SMTP_PASSWORD", description="Password for SMTP server")
-    # Github actions setting
-    github_actions: str = Field(default='false', alias="GITHUB_ACTIONS", description="Github actions setting, true if CI/CD pipeline is run")
+    # SMTP Mock settings for Pytests
+    smtp_test_use_mock: str = Field(default='false', alias="SMTP_TEST_USE_MOCK", description="Setting to use SMTP for Pytest. In github actions, this is set to true, Locally it wil not use mock and hence false")
 
     class Config:
         # If your .env file is not in the root directory, adjust the path accordingly.

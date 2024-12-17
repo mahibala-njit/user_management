@@ -51,7 +51,7 @@ jobs:
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          GITHUB_ACTIONS: "true"
+          SMTP_TEST_USE_MOCK: "true"
         run: pytest
 
   build-and-push-docker:
