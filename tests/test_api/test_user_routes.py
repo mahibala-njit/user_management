@@ -15,9 +15,16 @@ from app.schemas.user_schemas import UserResponse, UserListResponse
 from app.schemas.pagination_schema import EnhancedPagination
 from fastapi.testclient import TestClient
 from app.dependencies import get_settings
+from app.routers.user_routes import login
 from faker import Faker
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 fake = Faker()  # Initialize Faker
+
+settings = get_settings()
 
 @pytest.mark.asyncio
 async def test_update_user_invalid_data(async_client, admin_token, admin_user):
@@ -192,20 +199,18 @@ async def test_create_user_invalid_input(async_client, admin_token):
     assert "value is not a valid email address" in str(response.json()["detail"])
 
 @pytest.mark.asyncio
-async def test_login_account_locked(async_client, mocker):
-    """Test login fails for locked accounts."""
-    form_data = {"username": "locked_user@example.com", "password": "CorrectPassword123!"}
-    # Mock UserService.is_account_locked to return True
+async def test_login_account_locked(mocker):
+    """Test login failure due to account being locked."""
+    mock_session = AsyncMock()
     mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=True)
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="locked_user", password="password")
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Account locked due to too many failed login attempts."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Account locked due to too many failed login attempts."
 
 @pytest.mark.asyncio
 async def test_login_success(async_client, mocker, db_session, verified_user):
@@ -236,41 +241,34 @@ async def test_login_success(async_client, mocker, db_session, verified_user):
 
 
 @pytest.mark.asyncio
-async def test_login_incorrect_credentials(async_client, mocker):
-    """Test login with incorrect credentials."""
-    form_data = {"username": "nonexistent@example.com", "password": "WrongPassword!"}
-    # Mock UserService.is_account_locked to return False
+async def test_login_incorrect_credentials(mocker):
+    """Test login failure due to incorrect credentials."""
+    mock_session = AsyncMock()
     mocker.patch("app.services.user_service.UserService.is_account_locked", return_value=False)
-    # Mock UserService.login_user to return None
     mocker.patch("app.services.user_service.UserService.login_user", return_value=None)
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="wrong_user", password="wrong_password")
 
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Incorrect email or password."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Incorrect email or password."
 
 @pytest.mark.asyncio
-async def test_login_unexpected_error(async_client, mocker):
-    """Test login when an unexpected error occurs."""
-    form_data = {"username": "user@example.com", "password": "ValidPassword123!"}
-    # Mock UserService.is_account_locked to raise an exception
-    mocker.patch(
-        "app.services.user_service.UserService.is_account_locked",
-        side_effect=Exception("Unexpected error!")
-    )
+async def test_login_unexpected_error(mocker):
+    """Test login failure due to an unexpected error."""
+    mock_session = AsyncMock()
+    mocker.patch("app.services.user_service.UserService.is_account_locked", side_effect=Exception("Unexpected error"))
 
-    response = await async_client.post(
-        "/login/",
-        data=form_data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"}
-    )
+    form_data = AsyncMock(username="test@example.com", password="password")
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "An unexpected error occurred."
+    with pytest.raises(HTTPException) as exc_info:
+        await login(form_data, session=mock_session)
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "An unexpected error occurred."
+
 
 @pytest.mark.asyncio
 async def test_list_users_with_results(async_client, admin_token, users_with_same_role_50_users):
@@ -338,3 +336,188 @@ async def test_list_users_empty_db(async_client, admin_token, db_session):
     response_data = response.json()
     assert response_data["total"] == 0
     assert len(response_data["items"]) == 0
+
+from app.utils.security import hash_password  # Ensure you import your password hashing utility
+
+@pytest.mark.asyncio
+async def test_user_response_model_validation(async_client, admin_token, db_session):
+    # Create sample users in the database
+    user_data = [
+        {
+            "email": "user1@example.com",
+            "nickname": "user1",
+            "role": UserRole.AUTHENTICATED,
+            "hashed_password": hash_password("Password123!"),
+        },
+        {
+            "email": "user2@example.com",
+            "nickname": "user2",
+            "role": UserRole.MANAGER,
+            "hashed_password": hash_password("Password123!"),
+        },
+    ]
+    for user in user_data:
+        db_user = User(**user)
+        db_session.add(db_user)
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+
+    # Validate response
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == len(user_data) + 1
+    assert all("id" in user for user in data["items"])
+
+
+@pytest.mark.asyncio
+async def test_pagination_links(async_client, admin_token, db_session):
+    # Insert dummy users into the database
+    for i in range(25):  # Create 25 users
+        db_session.add(
+            User(
+                email=f"user{i}@example.com",
+                nickname=f"user{i}",
+                hashed_password=hash_password("Password123!"),  # Use hashed_password
+                role=UserRole.AUTHENTICATED,
+            )
+        )
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=10&limit=5", headers=headers)
+
+    # Validate pagination links
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "next" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
+
+
+@pytest.mark.asyncio
+async def test_create_user_existing_email_check(async_client, admin_token, db_session):
+    # Create an existing user
+    existing_user = User(
+        email="duplicate@example.com",
+        nickname="duplicate",
+        hashed_password=hash_password("Password123!"),  # Use hashed_password
+        role=UserRole.AUTHENTICATED,
+    )
+    db_session.add(existing_user)
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": "duplicate@example.com",
+        "nickname": "new_nickname",
+        "password": "Password123!",  # This will be hashed in the actual app logic
+        "role": UserRole.AUTHENTICATED.name,
+    }
+    response = await async_client.post("/users/", json=user_data, headers=headers)
+
+    # Verify the duplicate email error
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Email already exists"
+
+@pytest.mark.asyncio
+async def test_generate_pagination_links_partial_page(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=40&limit=20", headers=headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+
+    # Validate pagination links for the partial page
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
+    assert not any(link["rel"] == "next" for link in links)  # No 'next' link for the last page
+
+@pytest.mark.asyncio
+async def test_pagination_links_zero_users(async_client, admin_token, db_session):
+    # Ensure the database is empty
+    await db_session.execute(text("DELETE FROM users"))
+    await db_session.commit()
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.get("/users/?skip=0&limit=10", headers=headers)
+
+    # Validate response
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert len(data["items"]) == 0
+    assert "links" in data
+    assert len(data["links"]) == 3  # Should only have self, first, last
+
+@pytest.mark.asyncio
+async def test_advanced_search_pagination_links(async_client, admin_token, users_with_same_role_50_users):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.post(
+        "/users-advanced-search",
+        json={"skip": 10, "limit": 10, "role": UserRole.AUTHENTICATED.name},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    links = data["links"]
+
+    # Validate the presence of pagination links
+    assert len(links) > 0
+    assert any(link["rel"] == "self" for link in links)
+    assert any(link["rel"] == "next" for link in links)
+    assert any(link["rel"] == "prev" for link in links)
+
+
+# This will test the sending email (SMTP connection as well), to use mock, .env setting should be smtp_test_use_mock = true
+@pytest.mark.asyncio
+async def test_create_user_success(async_client, admin_token):
+    """Test successful user creation."""
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    user_data = {
+        "email": "user@example.com",
+        "password": "ValidPassword123!",
+        "nickname": "valid_nickname",
+        "role": "ANONYMOUS"
+    }
+
+    # Check if running in GitHub Actions, 
+    # If true this test will use mock, else use real as this will test the smtp connection
+    # For this test to work, make sure the .env file has correct values for the smtp connection (server, port, username, password)
+    is_ci = settings.smtp_test_use_mock == "true"
+
+    # Conditionally mock email sending
+    if is_ci:
+        with patch("app.services.email_service.EmailService.send_verification_email", new_callable=AsyncMock) as mock_send_email:
+            mock_send_email.return_value = None
+            logger.info("Uses Email Service mock")
+
+            # Send the request
+            response = await async_client.post("/users/", json=user_data, headers=headers)
+
+            # Assertions
+            assert response.status_code == 201, response.json()
+            response_data = response.json()
+            assert response_data["email"] == user_data["email"]
+            assert response_data["nickname"] == user_data["nickname"]
+            assert response_data["role"] == user_data["role"]
+
+            # Verify the mock was called
+            mock_send_email.assert_called_once()
+    else:
+        # Real execution locally
+        response = await async_client.post("/users/", json=user_data, headers=headers)
+        logger.info("Real execution - does not use Email Service mock")
+
+        # Assertions
+        assert response.status_code == 201, response.json()
+        response_data = response.json()
+        assert response_data["email"] == user_data["email"]
+        assert response_data["nickname"] == user_data["nickname"]
+        assert response_data["role"] == user_data["role"]
