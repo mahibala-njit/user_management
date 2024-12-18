@@ -178,16 +178,39 @@ async def basic_search_users(
     current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
-    Basic search endpoint for filtering users by username, email, role, or lock status.
+    Basic User Search Endpoint
 
-    Args:
-        query (UserSearchQueryRequest): Encapsulates search and filtering criteria.
-        request (Request): HTTP request object for pagination links.
-        db (AsyncSession): Database session.
-        current_user (dict): Current logged-in user.
+    This endpoint provides administrators with the ability to perform quick and simple searches on user data.
+    It supports filtering by username, email, role, and account lock status, with pagination to efficiently manage results.
 
-    Returns:
-        UserListResponse: Paginated list of users matching the criteria.
+    **Args**:
+        - `username` (*str*, optional): Search by username (e.g., "john").
+        - `email` (*str*, optional): Search by email (e.g., "user@example.com").
+        - `role` (*UserRole*, optional): Filter by user role (e.g., ADMIN, MANAGER, AUTHENTICATED).
+        - `is_locked` (*bool*, optional): Filter by lock status (`True` for locked, `False` for unlocked).
+        - `skip` (*int*, optional): Number of records to skip for pagination (default: 0).
+        - `limit` (*int*, optional): Maximum number of records to return per page (default: 10).
+
+    **Returns**:
+        - Paginated list of users matching the provided filters.
+
+    **Examples**:
+        - **Search for users by username**:
+            ```
+            GET /users-search?username=john&skip=0&limit=10
+            ```
+        - **Filter users by role and lock status**:
+            ```
+            GET /users-search?role=ADMIN&is_locked=false&skip=0&limit=5
+            ```
+
+    **Usage Notes**:
+        - This endpoint is designed for quick searches with minimal filter criteria.
+        - Pagination ensures efficient handling of large user datasets.
+        - Fields not provided in the query will be ignored, allowing flexible searches.
+
+    **Permissions**:
+        - Only administrators (`ADMIN` role) can access this endpoint.
     """
     total_users, users = await UserService.search_and_filter_users(
         db,
@@ -302,15 +325,48 @@ async def advanced_search_users(
     current_user: dict = Depends(require_role(["ADMIN"])),
 ):
     """
-    Advanced search endpoint for users.
+    Advanced User Search Endpoint
+    
+    This endpoint allows administrators to perform flexible and advanced filtering of users. 
+    It accepts a JSON body containing various search criteria and supports pagination.
 
-    Parameters:
-        - request (Request): HTTP request object for pagination links.
-        - filters (UserSearchFilterRequest): JSON body containing search criteria.
-        - db (AsyncSession): Database session.
+    **Args**:
+        - `username` (*str*, optional): Search by username (e.g., "john").
+        - `email` (*str*, optional): Search by email (e.g., "user@example.com").
+        - `role` (*UserRole*, optional): Filter by user role (e.g., ADMIN, MANAGER, AUTHENTICATED).
+        - `is_locked` (*bool*, optional): Filter by lock status (`True` for locked, `False` for unlocked).
+        - `created_from` (*datetime*, optional): Filter users created on or after this date.
+        - `created_to` (*datetime*, optional): Filter users created on or before this date.
+        - `skip` (*int*, optional): Number of records to skip for pagination (default: 0).
+        - `limit` (*int*, optional): Maximum number of records to return per page (default: 10).
 
-    Returns:
-        UserListResponse: Paginated list of users matching the criteria.
+    **Returns**:
+        - Paginated list of users matching the provided filters.
+
+    **Examples**:
+        - Search for users with the role `ADMIN` and account locked:
+          ```json
+          {
+              "role": "ADMIN",
+              "is_locked": true
+          }
+          ```
+        - Search for users created between two dates with pagination:
+          ```json
+          {
+              "created_from": "2024-01-01T00:00:00",
+              "created_to": "2024-06-01T23:59:59",
+              "skip": 0,
+              "limit": 20
+          }
+          ```
+
+    **Notes**:
+        - Fields left empty or excluded will not impact the search results.
+        - Results are paginated, and additional pages can be accessed using the provided links.
+    
+    **Permissions**:
+        - Only administrators (`ADMIN` role) can access this endpoint.
     """
     total_users, users = await UserService.advanced_search_users(
         db,
